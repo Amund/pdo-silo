@@ -70,27 +70,6 @@ A quick overview ? Here it is.
 		)
 	) ); // => array( 1, 3 );
 
-All datas in NOOP are stored in a unique multilevel associative array, its registry system. It's globally accessible without polluting global scope, and organized as follow :
-- `config` All configuration variables in there
-- `app` App related infos, calculated from the request
-- `request` Details of the request, and controller related vars
-- `controllers` Collection of PHP scripts to include
-- `pdo` Collection of PDO instances already created
-- `benchmark` Collection of benchmarks
-- `var` Your playground, store anything you want...
-
-
-During the development, you can inspect this registry at any time with the method [`inspect`](#method-inspect).
-
-	// Inspect all the registry...
-	echo noop::inspect();
-
-    // ...or a part...
-	echo noop::inspect( 'config' );
-
-    // ...or a part of a part...
-	echo noop::inspect( 'config/path' );
-
 
 <a name="api"></a>
 ## API [^](#top)

@@ -3,6 +3,8 @@
 
 A silo to store and link resources, via a simple api.
 
+**CAUTION** : It's a work in progress, and not all api has unit tests.
+
 Type|Methods
 ----:|:----
 Silo | [`__construct`](#method-construct), [`create`](#method-create), [`delete`](#method-delete)

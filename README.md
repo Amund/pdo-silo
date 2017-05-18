@@ -23,55 +23,56 @@ The idea behind the Silo PHP class is to get a minimal class to have a persisten
 
 A quick overview ? Here it is.
 
-	// creating a testing silo
-	$pdo = new PDO( 'mysql:host=localhost;dbname=mydb;charset=utf8','login','password' );
-	$silo = new Silo( $pdo, 'test' );
-	$silo->create();
+```php
+// creating a testing silo
+$pdo = new PDO( 'mysql:host=localhost;dbname=mydb;charset=utf8','login','password' );
+$silo = new Silo( $pdo, 'test' );
+$silo->create();
 
-	// adding resources
-	$silo->set( 'person', array( 'firstname'=>'John', 'lastname'=>'Doe', 'gender'=>'M' ) ); // => 1
-	$silo->set( 'person', array( 'firstname'=>'Cynthia', 'lastname'=>'Doe', 'gender'=>'F' ) ); // => 2
-	$silo->set( 'person', array( 'firstname'=>'Régis', 'lastname'=>'Doe', 'gender'=>'M' ) ); // => 3
-	$silo->set( 'address', array( 'street'=>'5 Bedford St', 'city'=>'New York' ) ); // => 4
-	$silo->set( 'animal', array( 'type'=>'fish', 'species'=>'Lutjanus sebae', 'color'=>'blue' ) ); // => 5
+// adding resources
+$silo->set( 'person', array( 'firstname'=>'John', 'lastname'=>'Doe', 'gender'=>'M' ) ); // => 1
+$silo->set( 'person', array( 'firstname'=>'Cynthia', 'lastname'=>'Doe', 'gender'=>'F' ) ); // => 2
+$silo->set( 'person', array( 'firstname'=>'Régis', 'lastname'=>'Doe', 'gender'=>'M' ) ); // => 3
+$silo->set( 'address', array( 'street'=>'5 Bedford St', 'city'=>'New York' ) ); // => 4
+$silo->set( 'animal', array( 'type'=>'fish', 'species'=>'Lutjanus sebae', 'color'=>'blue' ) ); // => 5
 
-	// modifying resource
-	$silo->attr( 4, 'zip', '10118');
-	$silo->attr( 5, 'color', 'red' );
+// modifying resource
+$silo->attr( 4, 'zip', '10118');
+$silo->attr( 5, 'color', 'red' );
 
-	// getting a resource by its id
-	$resource = $silo->get( 1 );
-	// => array(
-	//	'id'=>1,
-	//	'class'=>'person',
-	//	'firstname'=>'John',
-	//	'lastname'=>'Doe'
-	// )
+// getting a resource by its id
+$resource = $silo->get( 1 );
+// => array(
+//	'id'=>1,
+//	'class'=>'person',
+//	'firstname'=>'John',
+//	'lastname'=>'Doe'
+// )
 
-	// adding some links
-	$silo->link( 1, 2, 'husband' );
-	$silo->link( 2, 1, 'wife' );
-	$silo->link( 3, 1, 'son' );
-	$silo->link( 3, 2, 'son' );
-	$silo->link( 4, 1 );
-	$silo->link( 4, 2 );
-	$silo->link( 4, 3 );
-	$silo->link( 5, 3, 'pet' );
+// adding some links
+$silo->link( 1, 2, 'husband' );
+$silo->link( 2, 1, 'wife' );
+$silo->link( 3, 1, 'son' );
+$silo->link( 3, 2, 'son' );
+$silo->link( 4, 1 );
+$silo->link( 4, 2 );
+$silo->link( 4, 3 );
+$silo->link( 5, 3, 'pet' );
 
-	// searching resources
-	$silo->search( array(
-		'where'=> $silo->filter( 'lastname', 'LIKE', 'doe' )
-	) ); // => array( 1, 2, 3 )
+// searching resources
+$silo->search( array(
+	'where'=> $silo->filter( 'lastname', 'LIKE', 'doe' )
+) ); // => array( 1, 2, 3 )
 
-	$silo->search( array(
-		'where'=> $silo->group(
-			'and',
-			$silo->filter( 'class', '=', 'person' ),
-			$silo->filter( 'lastname', 'LIKE', 'doe' ),
-			$silo->filter( 'gender', '=', 'M' )
-		)
-	) ); // => array( 1, 3 );
-
+$silo->search( array(
+	'where'=> $silo->group(
+		'and',
+		$silo->filter( 'class', '=', 'person' ),
+		$silo->filter( 'lastname', 'LIKE', 'doe' ),
+		$silo->filter( 'gender', '=', 'M' )
+	)
+) ); // => array( 1, 3 );
+```
 
 <a name="api"></a>
 ## API [^](#top)
@@ -92,20 +93,21 @@ Create a Silo instance to play with. The PDO resource must be a valid MySQL or S
 
 ###### Example
 
-	// create a mysql PDO resource
-	$pdo = new PDO( 'mysql:host=localhost;dbname=mydb;charset=utf8','login','password' );
-	// or for sqlite
-	$pdo = new PDO( 'sqlite:/path/to/database.db' );
+```php
+// create a mysql PDO resource
+$pdo = new PDO( 'mysql:host=localhost;dbname=mydb;charset=utf8','login','password' );
+// or for sqlite
+$pdo = new PDO( 'sqlite:/path/to/database.db' );
 
-	// then your silo instance, with 'resource' as prefix, and a database cache
-	$silo = new Silo( $pdo );
+// then your silo instance, with 'resource' as prefix, and a database cache
+$silo = new Silo( $pdo );
 
-	// or with a different prefix
-	$silo = new Silo( $pdo, 'myproject' );
+// or with a different prefix
+$silo = new Silo( $pdo, 'myproject' );
 
-	// or with disk cache
-	$silo = new Silo( $pdo, 'myproject', '/path/to/cache' );
-
+// or with disk cache
+$silo = new Silo( $pdo, 'myproject', '/path/to/cache' );
+```
 
 ## TODO
 - Continue documentation

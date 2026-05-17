@@ -1,0 +1,47 @@
+{
+	"name": "amund/pdo-silo",
+	"description": "A silo to store and link resources, via a simple API.",
+	"type": "library",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Dimitri Avenel",
+			"homepage": "https://github.com/Amund"
+		}
+	],
+	"keywords": ["pdo", "orm", "persistence", "storage", "simple"],
+	"support": {
+		"issues": "https://github.com/Amund/pdo-silo/issues",
+		"source": "https://github.com/Amund/pdo-silo"
+	},
+	"require": {
+		"php": ">=8.1",
+		"ext-pdo": "*",
+		"psr/simple-cache": "^3.0"
+	},
+	"require-dev": {
+		"phpstan/phpstan": "^2.1",
+		"phpunit/phpunit": "^11.0"
+	},
+	"suggest": {
+		"ext-pdo_pgsql": "Required to use the PostgreSQL driver"
+	},
+	"autoload": {
+		"psr-4": {
+			"Silo\\": "src/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"Silo\\Tests\\": "tests/"
+		}
+	},
+	"scripts": {
+		"test": "phpunit",
+		"phpstan": "phpstan analyse",
+		"check": ["@phpstan", "@test"]
+	},
+	"config": {
+		"sort-packages": true
+	}
+}

@@ -1,117 +1,157 @@
 <a name="top"></a>
 # PDO-Silo
 
-A silo to store and link resources, via a simple api.
+A silo to store and link resources, via a simple API.
 
-**CAUTION** : It's a work in progress, and not all api has unit tests.
+[![Latest Stable Version](https://poser.pugx.org/amund/pdo-silo/v/stable)](https://packagist.org/packages/amund/pdo-silo)
 
-Type|Methods
-----:|:----
-Silo | [`__construct`](#method-construct), [`create`](#method-create), [`delete`](#method-delete)
-Resources | [`get`](#method-get), [`set`](#method-set), [`meta`](#method-meta), [`attr`](#method-attr), [`attributes`](#method-attributes)
-Links | [`link`](#method-link), [`unlink`](#method-unlink), [`from`](#method-from), [`to`](#method-to)
-Searches | [`search`](#method-search), [`filter`](#method-filter), [`group`](#method-group)
-Cache | [`emptyCache`](#method-emptyCache)
+**License:** MIT  
+**PHP:** 8.1+  
+**Drivers:** MySQL, SQLite, PostgreSQL  
 
-**Dowload** : https://github.com/Amund/pdo-silo
+---
 
+## Installation
 
-<a name="silo"></a>
-## Silo [^](#top)
+```bash
+composer require amund/pdo-silo
+```
 
-The idea behind the Silo PHP class is to get a minimal class to have a persistence layer in a project, a nano ORM and DBAL (Doctrine ?). Sure, it doesn't fit in all projects, it has a bunch of limitations, but it's simple, small, fast, and more importantly, it's fun to use.
-
-A quick overview ? Here it is.
+## Quick Overview
 
 ```php
+use Silo\Silo;
+
 // creating a testing silo
-$pdo = new PDO( 'mysql:host=localhost;dbname=mydb;charset=utf8','login','password' );
-$silo = new Silo( $pdo, 'test' );
+$pdo = new \PDO('mysql:host=localhost;dbname=mydb;charset=utf8', 'login', 'password');
+$silo = new Silo($pdo, 'test');
 $silo->create();
 
 // adding resources
-$silo->set( 'person', array( 'firstname'=>'John', 'lastname'=>'Doe', 'gender'=>'M' ) ); // => 1
-$silo->set( 'person', array( 'firstname'=>'Cynthia', 'lastname'=>'Doe', 'gender'=>'F' ) ); // => 2
-$silo->set( 'person', array( 'firstname'=>'Régis', 'lastname'=>'Doe', 'gender'=>'M' ) ); // => 3
-$silo->set( 'address', array( 'street'=>'5 Bedford St', 'city'=>'New York' ) ); // => 4
-$silo->set( 'animal', array( 'type'=>'fish', 'species'=>'Lutjanus sebae', 'color'=>'blue' ) ); // => 5
+$silo->set('person', ['firstname' => 'John', 'lastname' => 'Doe', 'gender' => 'M']); // => 1
+$silo->set('person', ['firstname' => 'Cynthia', 'lastname' => 'Doe', 'gender' => 'F']); // => 2
+$silo->set('person', ['firstname' => 'Régis', 'lastname' => 'Doe', 'gender' => 'M']); // => 3
+$silo->set('address', ['street' => '5 Bedford St', 'city' => 'New York']); // => 4
+$silo->set('animal', ['type' => 'fish', 'species' => 'Lutjanus sebae', 'color' => 'blue']); // => 5
 
 // modifying resource
-$silo->attr( 4, 'zip', '10118');
-$silo->attr( 5, 'color', 'red' );
+$silo->setAttr(4, 'zip', '10118');
+$silo->setAttr(5, 'color', 'red');
 
 // getting a resource by its id
-$resource = $silo->get( 1 );
-// => array(
-//	'id'=>1,
-//	'class'=>'person',
-//	'firstname'=>'John',
-//	'lastname'=>'Doe'
-// )
+$resource = $silo->get(1);
+// => ['id' => 1, 'class' => 'person', 'firstname' => 'John', 'lastname' => 'Doe']
 
 // adding some links
-$silo->link( 1, 2, 'husband' );
-$silo->link( 2, 1, 'wife' );
-$silo->link( 3, 1, 'son' );
-$silo->link( 3, 2, 'son' );
-$silo->link( 4, 1 );
-$silo->link( 4, 2 );
-$silo->link( 4, 3 );
-$silo->link( 5, 3, 'pet' );
+$silo->link(1, 2, 'husband');
+$silo->link(2, 1, 'wife');
+$silo->link(3, 1, 'son');
+$silo->link(3, 2, 'son');
+$silo->link(4, 1);
+$silo->link(4, 2);
+$silo->link(4, 3);
+$silo->link(5, 3, 'pet');
 
 // searching resources
-$silo->search( array(
-	'where'=> $silo->filter( 'lastname', 'LIKE', 'doe' )
-) ); // => array( 1, 2, 3 )
+$silo->search(['where' => $silo->filter('lastname', 'LIKE', 'doe')]);
+// => [1, 2, 3]
 
-$silo->search( array(
-	'where'=> $silo->group(
-		'and',
-		$silo->filter( 'class', '=', 'person' ),
-		$silo->filter( 'lastname', 'LIKE', 'doe' ),
-		$silo->filter( 'gender', '=', 'M' )
-	)
-) ); // => array( 1, 3 );
+$silo->search([
+    'where' => $silo->group(
+        'and',
+        $silo->filter('class', '=', 'person'),
+        $silo->filter('lastname', 'LIKE', 'doe'),
+        $silo->filter('gender', '=', 'M')
+    ),
+]);
+// => [1, 3]
 ```
 
-<a name="api"></a>
-## API [^](#top)
+## API
 
+### Silo lifecycle
 
-<a name="method-construct"></a>
-### __construct( `$pdo`[, `$prefix`[, `$cache`]] ) [^](#top)
+| Method | Description |
+|--------|-------------|
+| `__construct(\PDO $pdo, string $prefix = 'resource', ?string $cache = null)` | Create a Silo instance. `$cache` defaults to PDO-based cache; set a path for disk-based cache. |
+| `create(): void` | Create the 4 database tables (`PREFIX_meta`, `PREFIX_attribute`, `PREFIX_link`, `PREFIX_cache`) |
+| `destroy(): void` | Drop all 4 tables |
 
-Create a Silo instance to play with. The PDO resource must be a valid MySQL or Sqlite resource (for now).
+### Resources
 
-###### Parameters
-- `$pdo` Required, PDO resource.
-- `$prefix` Optional, String, default to 'resource'. This is the database tables prefix.
-- `$cache` Optional, String, default to NULL. Two cache systems are available : PDO or disk. By default, the caching system use $pdo resource to store cache items, in a table named "`$prefix`_cache". Otherwise, you can set caching system to disk by giving a path.
+| Method | Description |
+|--------|-------------|
+| `set(string $class, array $attributes = [], bool $get = false): int\|array` | Create a resource. Returns its id (or full resource if `$get` is true). |
+| `get(int $id, bool $links = false, bool $getLinks = false): ?array` | Retrieve a resource by id. Optionally include its links. |
+| `getMeta(int $id): ?array` | Returns `['id', 'class']` or null. |
+| `setMeta(?int $id, string $class): int` | Create (`$id = null`) or update a resource class. Returns the resource id. |
+| `getAttr(int $id, string $attr): ?string` | Returns the attribute value, or null. |
+| `setAttr(int $id, string $attr, mixed $value): mixed` | Set/update/delete an attribute. Empty values (`''`, `0`, `false`, `null`) delete the attribute. |
+| `getAttributes(int $id): array` | Returns all attributes as `['name' => 'value', ...]`. |
+| `setAttributes(int $id, ?array $attributes): ?array` | Replace all attributes, or pass `null` to delete them all. |
 
-###### Return
-- Return the Silo instance.
+### Links
 
-###### Example
+| Method | Description |
+|--------|-------------|
+| `link(int $from, int $to, ?string $attribute = null): bool` | Create a link. Default attribute = target class name. |
+| `unlink($from, $to): bool` | Remove a specific link, all links from, all links to, or all links for an id. |
+| `from(int $id, bool $get = false): array` | Get child links, grouped by attribute. |
+| `to(int $id, bool $get = false): array` | Get parent links, grouped by attribute. |
+
+### Search
+
+| Method | Description |
+|--------|-------------|
+| `search(array $arg = [], bool $get = false, bool $links = false, bool $getLinks = false): array` | Search resources. Returns `['total', 'results', 'duration']`. Supports `where`, `order`, and `limit` keys. |
+| `filter(string $field, string $operator, mixed $value): string` | Build a WHERE clause fragment. Operators: `=`, `!=`, `<`, `>`, `<=`, `>=`, `LIKE`, `IN`. |
+| `group(): string` | Combine filters with `AND` or `OR`. |
+
+### Cache
+
+| Method | Description |
+|--------|-------------|
+| `emptyCache(): void` | Clear all cached resources. |
+
+The library also provides a standalone PSR-16 SimpleCache adapter:
 
 ```php
-// create a mysql PDO resource
-$pdo = new PDO( 'mysql:host=localhost;dbname=mydb;charset=utf8','login','password' );
-// or for sqlite
-$pdo = new PDO( 'sqlite:/path/to/database.db' );
+use Silo\Cache;
 
-// then your silo instance, with 'resource' as prefix, and a database cache
-$silo = new Silo( $pdo );
-
-// or with a different prefix
-$silo = new Silo( $pdo, 'myproject' );
-
-// or with disk cache
-$silo = new Silo( $pdo, 'myproject', '/path/to/cache' );
+$cache = new Cache($pdo, 'my_cache');
+$cache->create();
+$cache->set('key', 'value', 3600); // TTL in seconds
+$value = $cache->get('key', 'default');
+$cache->has('key'); // true
+$cache->delete('key');
+$cache->clear();
 ```
 
-## TODO
-- Continue documentation
-- Add tests to cache system
-- Add tests to search methods
-- Extend to (or maybe just test) PDO resources other than MySQL or Sqlite
-- Perhaps modify cache implementation to follow [PRSR6](http://www.php-fig.org/psr/psr-6/)
+Supports PDO-based storage (default), disk-based storage, and TTL expiration.
+
+## Running Tests
+
+```bash
+composer test          # runs vendor/bin/phpunit
+```
+
+Tests use SQLite `:memory:`. Each test creates and destroys its own silo.
+
+## Static Analysis
+
+```bash
+composer phpstan       # runs vendor/bin/phpstan analyse
+composer check         # runs phpstan + tests
+```
+
+## Requirements
+
+- PHP 8.1 or higher
+- `ext-pdo` (required)
+- `ext-pdo_mysql` (for MySQL), `ext-pdo_sqlite` (for SQLite), or `ext-pdo_pgsql` (for PostgreSQL)
+
+## About
+
+The idea behind PDO-Silo is to provide a minimal persistence layer for PHP projects — a nano ORM / DBAL. It is simple, small, fast, and fun to use.
+
+Built by [Dimitri Avenel](https://github.com/Amund). Originally created in 2016.

@@ -77,7 +77,7 @@ class Store
     public function setAttr(int $id, string $attr, mixed $value): mixed
     {
         if (!is_scalar($value) && $value !== null) {
-            throw new \InvalidArgumentException('Attribute value is not scalar');
+            throw new Exception('Attribute value is not scalar');
         }
 
         $lowerAttr = strtolower($attr);

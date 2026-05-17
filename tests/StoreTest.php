@@ -128,4 +128,14 @@ class StoreTest extends TestCase
 
         $this->assertNull($silo->setAttributes($id, null));
     }
+
+    public function testSetAttrNonScalar(): void
+    {
+        $silo = $this->createSilo();
+        $id = $silo->setMeta(null, 'test');
+
+        $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('Attribute value is not scalar');
+        $silo->setAttr($id, 'tags', ['a', 'b']);
+    }
 }

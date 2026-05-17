@@ -125,4 +125,16 @@ class ResourceLinkTest extends TestCase
         $this->assertSame([], $silo->linkFrom(2));
         $this->assertSame([], $silo->linkTo(2));
     }
+
+    public function testUnlinkBadArguments(): void
+    {
+        $silo = $this->createSilo();
+        // Appel direct à ResourceLink pour tester l'exception (> 2 arguments)
+        $ref = new \ReflectionClass($silo);
+        $linker = $ref->getProperty('linker')->getValue($silo);
+
+        $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('Bad arguments count');
+        $linker->unlink(1, 2, 3);
+    }
 }

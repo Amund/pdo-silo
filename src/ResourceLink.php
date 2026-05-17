@@ -105,7 +105,7 @@ class ResourceLink
                 $stmt->execute([$from, $to]);
                 return true;
             default:
-                throw new \BadMethodCallException('Bad arguments count');
+                throw new Exception('Bad arguments count');
         }
     }
 

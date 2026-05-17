@@ -220,7 +220,26 @@ class FinderTest extends TestCase
         $silo = $this->createSilo();
 
         $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('Unsupported filter operator: INVALID');
         $silo->filter('age', 'INVALID', 'value');
+    }
+
+    public function testFilterLikeRequiresString(): void
+    {
+        $silo = $this->createSilo();
+
+        $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('LIKE operator requires a string value');
+        $silo->filter('name', 'LIKE', 42);
+    }
+
+    public function testFilterComparisonRequiresString(): void
+    {
+        $silo = $this->createSilo();
+
+        $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('Filter value must be a string for > operator');
+        $silo->filter('age', '>', 42);
     }
 
     public function testFilterNumericComparison(): void
@@ -248,6 +267,7 @@ class FinderTest extends TestCase
         $silo = $this->createSilo();
 
         $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('Filter value must be a string for = operator');
         $silo->filter('age', '=', 42);
     }
 
@@ -274,6 +294,7 @@ class FinderTest extends TestCase
         $silo = $this->createSilo();
 
         $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('Group operator must be AND or OR, got XOR');
         $silo->group('xor', $silo->filter('class', '=', 'person'));
     }
 
@@ -282,6 +303,7 @@ class FinderTest extends TestCase
         $silo = $this->createSilo();
 
         $this->expectException(\Silo\Exception::class);
+        $this->expectExceptionMessage('Group requires at least 2 filters');
         $silo->group('and');
     }
 }

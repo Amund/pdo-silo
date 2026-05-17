@@ -114,7 +114,7 @@ class Finder
             case '!=':
             case '<>':
                 if (!is_string($value)) {
-                    throw new Exception('Bad Request');
+                    throw new Exception('Filter value must be a string for ' . $operator . ' operator');
                 }
                 $sql .= $operator . $this->pdo->quote($value);
                 break;
@@ -123,7 +123,7 @@ class Finder
             case '<':
             case '>':
                 if (!is_string($value)) {
-                    throw new Exception('Bad Request');
+                    throw new Exception('Filter value must be a string for ' . $operator . ' operator');
                 }
                 $quoted = $this->pdo->quote($value);
                 if ($field !== 'id' && $field !== 'class' && is_numeric($value)) {
@@ -134,7 +134,7 @@ class Finder
                 break;
             case 'LIKE':
                 if (!is_string($value)) {
-                    throw new Exception('Bad Request');
+                    throw new Exception('LIKE operator requires a string value');
                 }
                 $sql .= ' ' . $operator . ' ' . $this->pdo->quote($value);
                 break;
@@ -146,7 +146,7 @@ class Finder
                 $sql .= ' IN ( ' . implode(', ', $list) . ' )';
                 break;
             default:
-                throw new Exception('Bad Request');
+                throw new Exception('Unsupported filter operator: ' . $operator);
         }
 
         return $sql;
@@ -159,12 +159,12 @@ class Finder
     {
         $filters = func_get_args();
         if (count($filters) < 2) {
-            throw new Exception('Bad Request');
+            throw new Exception('Group requires at least 2 filters');
         }
 
         $operator = strtoupper(trim(array_shift($filters)));
         if ($operator !== 'OR' && $operator !== 'AND') {
-            throw new Exception('Bad Request');
+            throw new Exception('Group operator must be AND or OR, got ' . $operator);
         }
 
         return ' ( ' . implode(' ) ' . $operator . ' ( ', $filters) . ' )';

@@ -564,6 +564,29 @@ class SiloTest extends TestCase
         $silo->filter('age', 'INVALID', 'value');
     }
 
+    public function testFilterNumericComparison(): void
+    {
+        $silo = $this->createSiloWithoutCache();
+        // Choisis pour que le tri string donne des résultats différents du tri numérique.
+        // String : '9' > '30' (vrai, '9' > '3'), '100' > '30' (faux, '1' < '3')
+        // Num    : 9 > 30 (faux), 100 > 30 (vrai)
+        $silo->set('product', ['price' => '9']);    // id=1
+        $silo->set('product', ['price' => '30']);   // id=2
+        $silo->set('product', ['price' => '100']);  // id=3
+
+        $result = $silo->search(['where' => $silo->filter('price', '>', '30')]);
+        $this->assertSame([3], $result['results']);
+
+        $result = $silo->search(['where' => $silo->filter('price', '<', '30')]);
+        $this->assertSame([1], $result['results']);
+
+        $result = $silo->search(['where' => $silo->filter('price', '>=', '30')]);
+        $this->assertSame([2, 3], $result['results']);
+
+        $result = $silo->search(['where' => $silo->filter('price', '<=', '30')]);
+        $this->assertSame([1, 2], $result['results']);
+    }
+
     public function testFilterNonStringValue(): void
     {
         $silo = $this->createSiloWithoutCache();

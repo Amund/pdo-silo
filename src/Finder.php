@@ -112,15 +112,25 @@ class Finder
         switch ($operator) {
             case '=':
             case '!=':
-            case '<=':
-            case '>=':
-            case '<':
-            case '>':
             case '<>':
                 if (!is_string($value)) {
                     throw new Exception('Bad Request');
                 }
                 $sql .= $operator . $this->pdo->quote($value);
+                break;
+            case '<=':
+            case '>=':
+            case '<':
+            case '>':
+                if (!is_string($value)) {
+                    throw new Exception('Bad Request');
+                }
+                $quoted = $this->pdo->quote($value);
+                if ($field !== 'id' && $field !== 'class' && is_numeric($value)) {
+                    $sql = 'attribute=' . $this->pdo->quote($field) . ' AND CAST(value AS NUMERIC) ' . $operator . ' CAST(' . $quoted . ' AS NUMERIC)';
+                } else {
+                    $sql .= $operator . $quoted;
+                }
                 break;
             case 'LIKE':
                 if (!is_string($value)) {

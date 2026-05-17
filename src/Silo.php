@@ -7,16 +7,10 @@ namespace Silo;
 use PDO;
 
 /**
- * Facade that orchestrates Store, ResourceLink, Finder, and caching.
- *
- * Public API is identical to the monolithic Silo.
+ * Facade that orchestrates Store, ResourceLink, Finder, caching, and lists.
  */
 class Silo
 {
-    public bool $cache = true;
-    public string $cacheType;
-    public ?string $cachePath;
-
     private PDO $pdo;
     private string $prefix;
     private Store $store;
@@ -24,7 +18,7 @@ class Silo
     private Finder $finder;
     private ResourceList $resourceList;
 
-    /** @var array<string, \PDOStatement> Cache internals */
+    /** @var array<string, \PDOStatement> */
     private array $stmt = [];
     private bool $_cache = true;
 
@@ -63,11 +57,10 @@ class Silo
     ];
 
     /**
-     * @param \PDO    $pdo     Connected PDO instance (MySQL, SQLite, or PostgreSQL).
-     * @param string  $prefix  Table prefix (default: 'resource').
-     * @param ?string $cache   Null for PDO-based cache, or a directory path for disk cache.
+     * @param \PDO   $pdo    Connected PDO instance (MySQL, SQLite, or PostgreSQL).
+     * @param string $prefix Table prefix (default: 'resource').
      */
-    public function __construct(PDO $pdo, string $prefix = 'resource', ?string $cache = null)
+    public function __construct(PDO $pdo, string $prefix = 'resource')
     {
         $this->pdo = $pdo;
         $this->prefix = $prefix !== '' ? strtolower($prefix) : 'resource';
@@ -76,13 +69,6 @@ class Silo
         $this->linker = new ResourceLink($pdo, $this->prefix, $this->store);
         $this->finder = new Finder($pdo, $this->prefix);
         $this->resourceList = new ResourceList($pdo, $this->prefix);
-
-        if ($cache === null) {
-            $this->cacheType = 'pdo';
-        } else {
-            $this->cacheType = 'disk';
-            $this->cachePath = $cache;
-        }
     }
 
     public function create(): void
@@ -113,18 +99,15 @@ class Silo
         if ($attributes !== []) {
             $this->withoutCache(fn() => $this->store->setAttributes($id, $attributes));
         }
-        if ($this->cache) {
-            $resource = $this->get($id);
-            $this->setCache($id, $resource);
-            return $get === true ? $resource : $id;
-        }
-        return $get === true ? $this->get($id) : $id;
+        $resource = $this->get($id);
+        $this->setCache($id, $resource);
+        return $get === true ? $resource : $id;
     }
 
     /** @return ?array<string, mixed> */
     public function get(int $id, bool $links = false, bool $getLinks = false): ?array
     {
-        if ($this->cache && $this->_cache) {
+        if ($this->_cache) {
             $resource = $this->getCache($id);
             if ($resource !== false) {
                 if ($links === true) {
@@ -146,7 +129,7 @@ class Silo
         $attributes = $this->store->getAttributes($id);
         $resource = array_merge($meta, $attributes);
 
-        if ($this->cache && $this->_cache) {
+        if ($this->_cache) {
             $this->setCache($id, $resource);
         }
 
@@ -170,9 +153,7 @@ class Silo
     public function setMeta(?int $id, string $class): int
     {
         $result = $this->store->setMeta($id, $class);
-        if ($this->cache) {
-            $this->withoutCache(fn() => $this->setCache($result, $this->get($result)));
-        }
+        $this->withoutCache(fn() => $this->setCache($result, $this->get($result)));
         return $result;
     }
 
@@ -184,9 +165,7 @@ class Silo
     public function setAttr(int $id, string $attr, mixed $value): mixed
     {
         $result = $this->store->setAttr($id, $attr, $value);
-        if ($this->cache) {
-            $this->withoutCache(fn() => $this->setCache($id, $this->get($id)));
-        }
+        $this->withoutCache(fn() => $this->setCache($id, $this->get($id)));
         return $result;
     }
 
@@ -201,9 +180,7 @@ class Silo
     public function setAttributes(int $id, ?array $attributes): ?array
     {
         $result = $this->store->setAttributes($id, $attributes);
-        if ($this->cache) {
-            $this->withoutCache(fn() => $this->setCache($id, $this->get($id)));
-        }
+        $this->withoutCache(fn() => $this->setCache($id, $this->get($id)));
         return $result;
     }
 
@@ -288,15 +265,8 @@ class Silo
 
     public function emptyCache(): void
     {
-        if ($this->cacheType === 'pdo') {
-            $stmt = $this->prepareCache('delete-all-cache');
-            $stmt->execute();
-        } elseif ($this->cacheType === 'disk' && $this->cachePath !== null) {
-            $cacheDir = $this->cachePath . '/' . $this->prefix;
-            if (is_dir($cacheDir)) {
-                $this->rmdirRecursive($cacheDir);
-            }
-        }
+        $stmt = $this->prepareCache('delete-all-cache');
+        $stmt->execute();
     }
 
     /** @var array<string, string> Cache SQL statements. */
@@ -330,23 +300,9 @@ class Silo
     /** @return array<string, mixed>|false */
     private function getCache(int $id): array|false
     {
-        switch (strtolower($this->cacheType)) {
-            case 'pdo':
-                $stmt = $this->prepareCache('select-cache');
-                $stmt->execute([$id]);
-                $resource = $stmt->fetch(PDO::FETCH_COLUMN);
-                break;
-            case 'disk':
-                $hash = hash('sha1', (string) $id);
-                $file = $this->calcFileCachePath($hash);
-                if (!is_file($file)) {
-                    return false;
-                }
-                $resource = file_get_contents($file);
-                break;
-            default:
-                return false;
-        }
+        $stmt = $this->prepareCache('select-cache');
+        $stmt->execute([$id]);
+        $resource = $stmt->fetch(PDO::FETCH_COLUMN);
         if (!$resource) {
             return false;
         }
@@ -356,61 +312,12 @@ class Silo
 
     private function setCache(int $id, mixed $resource = null): void
     {
-        switch (strtolower($this->cacheType)) {
-            case 'pdo':
-                if ($resource === null) {
-                    $stmt = $this->prepareCache('delete-cache');
-                    $stmt->execute([$id]);
-                } else {
-                    $stmt = $this->prepareCache('replace-cache');
-                    $stmt->execute([$id, json_encode($resource)]);
-                }
-                break;
-            case 'disk':
-                $hash = hash('sha1', (string) $id);
-                $file = $this->calcFileCachePath($hash);
-                $dir = dirname($file);
-                if (!is_dir($dir)) {
-                    try {
-                        mkdir($dir, 0777, true);
-                    } catch (\Throwable $e) {
-                        throw new Exception('Can\'t create cache directory (' . $e->getMessage() . ')');
-                    }
-                }
-                if ($resource === null) {
-                    if (is_file($file)) {
-                        unlink($file);
-                    }
-                } else {
-                    file_put_contents($file, json_encode($resource));
-                }
-                break;
+        if ($resource === null) {
+            $stmt = $this->prepareCache('delete-cache');
+            $stmt->execute([$id]);
+        } else {
+            $stmt = $this->prepareCache('replace-cache');
+            $stmt->execute([$id, json_encode($resource)]);
         }
-    }
-
-    private function calcFileCachePath(string $hash): string
-    {
-        return implode('/', [
-            $this->cachePath,
-            $this->prefix,
-            substr($hash, 0, 1),
-            substr($hash, 1, 1),
-            $hash,
-        ]);
-    }
-
-    private function rmdirRecursive(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getRealPath()) : unlink($item->getRealPath());
-        }
-        rmdir($dir);
     }
 }

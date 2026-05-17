@@ -27,7 +27,6 @@ class ResourceListTest extends TestCase
     private function createSilo(): Silo
     {
         $silo = new Silo($this->pdo, 'test');
-        $silo->cache = false;
         $silo->create();
         return $silo;
     }

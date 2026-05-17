@@ -38,9 +38,7 @@ class SiloTest extends TestCase
 
     private function createSiloWithoutCache(): Silo
     {
-        $silo = $this->createSilo();
-        $silo->cache = false;
-        return $silo;
+        return $this->createSilo();
     }
 
     private function tablesNames(string $prefix = 'resource'): array
@@ -194,17 +192,6 @@ class SiloTest extends TestCase
         $this->assertSame('John', $resource['name']);
     }
 
-    public function testCacheDisabledDoesNotCache(): void
-    {
-        $silo = $this->createSilo();
-        $silo->cache = false;
-
-        $id = $silo->set('person', ['name' => 'John']);
-
-        $resource = $silo->get($id);
-        $this->assertSame('John', $resource['name']);
-    }
-
     public function testEmptyCache(): void
     {
         $silo = $this->createSilo();
@@ -228,68 +215,5 @@ class SiloTest extends TestCase
         $silo->setAttr($id, 'name', 'Jane');
         $resource = $silo->get($id);
         $this->assertSame('Jane', $resource['name']);
-    }
-
-    /* CACHE — Disk */
-
-    public function testDiskCache(): void
-    {
-        $cacheDir = sys_get_temp_dir() . '/pdo-silo-test-' . bin2hex(random_bytes(8));
-
-        try {
-            $silo = new Silo($this->pdo, 'test', $cacheDir);
-            $silo->create();
-            $this->silo = $silo;
-
-            $id = $silo->set('person', ['name' => 'John']);
-            $resource = $silo->get($id);
-            $this->assertSame('John', $resource['name']);
-
-            $hash = hash('sha1', (string) $id);
-            $cacheFile = $cacheDir . '/test/' . $hash[0] . '/' . $hash[1] . '/' . $hash;
-            $this->assertFileExists($cacheFile);
-
-            $cached = json_decode(file_get_contents($cacheFile), true);
-            $this->assertSame('John', $cached['name']);
-        } finally {
-            $this->rmdirRecursive($cacheDir);
-        }
-    }
-
-    public function testDiskCacheEmptyDirectory(): void
-    {
-        $cacheDir = sys_get_temp_dir() . '/pdo-silo-test-' . bin2hex(random_bytes(8));
-
-        try {
-            $silo = new Silo($this->pdo, 'test', $cacheDir);
-            $silo->create();
-            $this->silo = $silo;
-
-            $id = $silo->set('person', ['name' => 'John']);
-
-            $silo->get($id);
-
-            $silo->emptyCache();
-
-            $resource = $silo->get($id);
-            $this->assertSame('John', $resource['name']);
-        } finally {
-            $this->rmdirRecursive($cacheDir);
-        }
-    }
-
-    private function rmdirRecursive(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getRealPath()) : unlink($item->getRealPath());
-        }
-        rmdir($dir);
     }
 }

@@ -29,7 +29,6 @@ class StoreTest extends TestCase
     private function createSilo(): Silo
     {
         $silo = new Silo($this->pdo, 'test');
-        $silo->cache = false;
         $silo->create();
         $this->silo = $silo;
         return $silo;

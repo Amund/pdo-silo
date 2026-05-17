@@ -73,7 +73,7 @@ $silo->search([
 
 | Method | Description |
 |--------|-------------|
-| `__construct(\PDO $pdo, string $prefix = 'resource', ?string $cache = null)` | Create a Silo instance. `$cache` defaults to PDO-based cache; set a path for disk-based cache. |
+| `__construct(\PDO $pdo, string $prefix = 'resource')` | Create a Silo instance. |
 | `create(): void` | Create the 4 database tables (`PREFIX_meta`, `PREFIX_attribute`, `PREFIX_link`, `PREFIX_cache`) |
 | `destroy(): void` | Drop all 4 tables |
 
@@ -96,8 +96,12 @@ $silo->search([
 |--------|-------------|
 | `link(int $from, int $to, ?string $attribute = null): bool` | Create a link. Default attribute = target class name. |
 | `unlink($from, $to): bool` | Remove a specific link, all links from, all links to, or all links for an id. |
-| `from(int $id, bool $get = false): array` | Get child links, grouped by attribute. |
-| `to(int $id, bool $get = false): array` | Get parent links, grouped by attribute. |
+| `linkFrom(int $id, bool $get = false): array` | Get child links, grouped by attribute. |
+| `linkTo(int $id, bool $get = false): array` | Get parent links, grouped by attribute. |
+| `getList(int $parent, string $attribute): array` | Get an ordered list of linked resources (by position). |
+| `setList(int $parent, string $attribute, array $children): void` | Replace an ordered list. |
+| `listFrom(int $id, bool $get = false): array` | Get list children, grouped by attribute. |
+| `listTo(int $id, bool $get = false): array` | Get list parents, grouped by attribute. |
 
 ### Search
 
@@ -112,22 +116,6 @@ $silo->search([
 | Method | Description |
 |--------|-------------|
 | `emptyCache(): void` | Clear all cached resources. |
-
-The library also provides a standalone PSR-16 SimpleCache adapter:
-
-```php
-use Silo\Cache;
-
-$cache = new Cache($pdo, 'my_cache');
-$cache->create();
-$cache->set('key', 'value', 3600); // TTL in seconds
-$value = $cache->get('key', 'default');
-$cache->has('key'); // true
-$cache->delete('key');
-$cache->clear();
-```
-
-Supports PDO-based storage (default), disk-based storage, and TTL expiration.
 
 ## Running Tests
 

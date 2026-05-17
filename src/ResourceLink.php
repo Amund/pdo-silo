@@ -11,7 +11,7 @@ use PDO;
  *
  * This class is used internally by Silo and has no cache awareness.
  */
-class Linker
+class ResourceLink
 {
     private PDO $pdo;
     private string $prefix;
@@ -23,18 +23,18 @@ class Linker
 
     /** @var array<string, string> */
     private static array $sql = [
-        'replace-link'     => 'REPLACE INTO PREFIX_link ( id_parent, id_child, attribute ) VALUES ( ?, ?, ? )',
+        'replace-link'     => 'REPLACE INTO PREFIX_link ( id_parent, id_child, attribute, position ) VALUES ( ?, ?, ?, -1 )',
         'delete-link'      => 'DELETE FROM PREFIX_link WHERE id_parent=? AND id_child=?',
         'delete-link-from' => 'DELETE FROM PREFIX_link WHERE id_parent=?',
         'delete-link-to'   => 'DELETE FROM PREFIX_link WHERE id_child=?',
 
-        'select-children'  => 'SELECT attribute, id_child FROM PREFIX_link WHERE id_parent=?',
-        'select-parents'   => 'SELECT attribute, id_parent FROM PREFIX_link WHERE id_child=?',
+        'select-children'  => 'SELECT attribute, id_child FROM PREFIX_link WHERE id_parent=? AND position = -1',
+        'select-parents'   => 'SELECT attribute, id_parent FROM PREFIX_link WHERE id_child=? AND position = -1',
     ];
 
     /** @var array<string, string> */
     private static array $pgsqlReplacements = [
-        'replace-link' => 'INSERT INTO PREFIX_link ( id_parent, id_child, attribute ) VALUES ( ?, ?, ? ) ON CONFLICT ( id_parent, id_child, attribute ) DO UPDATE SET attribute = EXCLUDED.attribute',
+        'replace-link' => 'INSERT INTO PREFIX_link ( id_parent, id_child, attribute, position ) VALUES ( ?, ?, ?, -1 ) ON CONFLICT ( id_parent, id_child, attribute, position ) DO UPDATE SET attribute = EXCLUDED.attribute',
     ];
 
     public function __construct(PDO $pdo, string $prefix, Store $store)

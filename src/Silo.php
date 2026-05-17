@@ -7,7 +7,7 @@ namespace Silo;
 use PDO;
 
 /**
- * Facade that orchestrates Store, Linker, Finder, and caching.
+ * Facade that orchestrates Store, ResourceLink, Finder, and caching.
  *
  * Public API is identical to the monolithic Silo.
  */
@@ -20,8 +20,9 @@ class Silo
     private PDO $pdo;
     private string $prefix;
     private Store $store;
-    private Linker $linker;
+    private ResourceLink $linker;
     private Finder $finder;
+    private ResourceList $resourceList;
 
     /** @var array<string, \PDOStatement> Cache internals */
     private array $stmt = [];
@@ -32,13 +33,13 @@ class Silo
         'mysql' => [
             'CREATE TABLE IF NOT EXISTS `PREFIX_meta` ( `id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT, `class` VARCHAR(255) NOT NULL, PRIMARY KEY (`id`), INDEX `class` (`class`) ) ENGINE=MyISAM',
             'CREATE TABLE IF NOT EXISTS `PREFIX_attribute` ( `id` INT(10) UNSIGNED NOT NULL, `attribute` VARCHAR(255) NOT NULL, `value` LONGTEXT NOT NULL, PRIMARY KEY (`id`, `attribute`), INDEX `attribute` (`attribute`), INDEX `id` (`id`) ) COLLATE="utf8_unicode_ci" ENGINE=MyISAM',
-            'CREATE TABLE IF NOT EXISTS `PREFIX_link` ( `id_parent` INT(10) UNSIGNED NOT NULL, `id_child` INT(10) UNSIGNED NOT NULL, `attribute` VARCHAR(255) NOT NULL, PRIMARY KEY (`id_parent`, `id_child`, `attribute`), INDEX `id_parent` (`id_parent`), INDEX `id_child` (`id_child`), INDEX `attribute` (`attribute`) ) COLLATE="utf8_unicode_ci" ENGINE=MyISAM',
+            'CREATE TABLE IF NOT EXISTS `PREFIX_link` ( `id_parent` INT(10) UNSIGNED NOT NULL, `id_child` INT(10) UNSIGNED NOT NULL, `attribute` VARCHAR(255) NOT NULL, `position` INT NOT NULL DEFAULT -1, PRIMARY KEY (`id_parent`, `id_child`, `attribute`, `position`), INDEX `id_parent` (`id_parent`), INDEX `id_child` (`id_child`), INDEX `attribute` (`attribute`) ) COLLATE="utf8_unicode_ci" ENGINE=MyISAM',
             'CREATE TABLE IF NOT EXISTS `PREFIX_cache` ( `id` INT(10) UNSIGNED NOT NULL, `resource` LONGTEXT NOT NULL, PRIMARY KEY (`id`) ) COLLATE="utf8_unicode_ci" ENGINE=MyISAM',
         ],
         'sqlite' => [
             'CREATE TABLE IF NOT EXISTS `PREFIX_meta` ( `id` INTEGER PRIMARY KEY, `class` VARCHAR(255) NOT NULL )',
             'CREATE TABLE IF NOT EXISTS `PREFIX_attribute` ( `id` INT(10) NOT NULL, `attribute` VARCHAR(255) NOT NULL, `value` LONGTEXT NOT NULL, PRIMARY KEY (`id`, `attribute`) )',
-            'CREATE TABLE IF NOT EXISTS `PREFIX_link` ( `id_parent` INT(10) NOT NULL, `id_child` INT(10) NOT NULL, `attribute` VARCHAR(255) NOT NULL, PRIMARY KEY (`id_parent`, `id_child`, `attribute`) )',
+            'CREATE TABLE IF NOT EXISTS `PREFIX_link` ( `id_parent` INT(10) NOT NULL, `id_child` INT(10) NOT NULL, `attribute` VARCHAR(255) NOT NULL, `position` INT NOT NULL DEFAULT -1, PRIMARY KEY (`id_parent`, `id_child`, `attribute`, `position`) )',
             'CREATE TABLE IF NOT EXISTS `PREFIX_cache` ( `id` INT(10) NOT NULL, `resource` LONGTEXT NOT NULL, PRIMARY KEY (`id`) )',
             'CREATE INDEX `class` ON `PREFIX_meta` (`class` ASC)',
             'CREATE INDEX `attribute` ON `PREFIX_attribute` (`attribute` ASC)',
@@ -50,7 +51,7 @@ class Silo
         'pgsql' => [
             'CREATE TABLE IF NOT EXISTS "PREFIX_meta" ( "id" SERIAL PRIMARY KEY, "class" VARCHAR(255) NOT NULL )',
             'CREATE TABLE IF NOT EXISTS "PREFIX_attribute" ( "id" INTEGER NOT NULL, "attribute" VARCHAR(255) NOT NULL, "value" TEXT NOT NULL, PRIMARY KEY ("id", "attribute") )',
-            'CREATE TABLE IF NOT EXISTS "PREFIX_link" ( "id_parent" INTEGER NOT NULL, "id_child" INTEGER NOT NULL, "attribute" VARCHAR(255) NOT NULL, PRIMARY KEY ("id_parent", "id_child", "attribute") )',
+            'CREATE TABLE IF NOT EXISTS "PREFIX_link" ( "id_parent" INTEGER NOT NULL, "id_child" INTEGER NOT NULL, "attribute" VARCHAR(255) NOT NULL, "position" INT NOT NULL DEFAULT -1, PRIMARY KEY ("id_parent", "id_child", "attribute", "position") )',
             'CREATE TABLE IF NOT EXISTS "PREFIX_cache" ( "id" INTEGER NOT NULL, "resource" TEXT NOT NULL, PRIMARY KEY ("id") )',
             'CREATE INDEX "class_idx" ON "PREFIX_meta" ("class")',
             'CREATE INDEX "attribute_idx" ON "PREFIX_attribute" ("attribute")',
@@ -72,8 +73,9 @@ class Silo
         $this->prefix = $prefix !== '' ? strtolower($prefix) : 'resource';
 
         $this->store = new Store($pdo, $this->prefix);
-        $this->linker = new Linker($pdo, $this->prefix, $this->store);
+        $this->linker = new ResourceLink($pdo, $this->prefix, $this->store);
         $this->finder = new Finder($pdo, $this->prefix);
+        $this->resourceList = new ResourceList($pdo, $this->prefix);
 
         if ($cache === null) {
             $this->cacheType = 'pdo';
@@ -129,6 +131,8 @@ class Silo
                     $resolve = $getLinks ? fn(int $childId) => $this->get($childId) : null;
                     $resource['links']['from'] = $this->linker->to($id, $resolve);
                     $resource['links']['to'] = $this->linker->from($id, $resolve);
+                    $resource['lists']['from'] = $this->resourceList->to($id, $resolve);
+                    $resource['lists']['to'] = $this->resourceList->from($id, $resolve);
                 }
                 return $resource;
             }
@@ -150,6 +154,8 @@ class Silo
             $resolve = $getLinks ? fn(int $childId) => $this->get($childId) : null;
             $resource['links']['from'] = $this->linker->to($id, $resolve);
             $resource['links']['to'] = $this->linker->from($id, $resolve);
+            $resource['lists']['from'] = $this->resourceList->to($id, $resolve);
+            $resource['lists']['to'] = $this->resourceList->from($id, $resolve);
         }
 
         return $resource;
@@ -201,6 +207,18 @@ class Silo
         return $result;
     }
 
+    /** @return int[] */
+    public function getList(int $parent, string $attribute): array
+    {
+        return $this->resourceList->get($parent, $attribute);
+    }
+
+    /** @param int[] $children */
+    public function setList(int $parent, string $attribute, array $children): void
+    {
+        $this->resourceList->set($parent, $attribute, $children);
+    }
+
     public function link(int $from, int $to, ?string $attribute = null): bool
     {
         return $this->linker->link($from, $to, $attribute);
@@ -218,15 +236,27 @@ class Silo
     }
 
     /** @return array<string, list<int|array<string, mixed>>> */
-    public function from(int $id, bool $get = false): array
+    public function linkFrom(int $id, bool $get = false): array
     {
         return $this->linker->from($id, $get ? fn(int $childId) => $this->get($childId) : null);
     }
 
     /** @return array<string, list<int|array<string, mixed>>> */
-    public function to(int $id, bool $get = false): array
+    public function linkTo(int $id, bool $get = false): array
     {
         return $this->linker->to($id, $get ? fn(int $parentId) => $this->get($parentId) : null);
+    }
+
+    /** @return array<string, list<int|array<string, mixed>>> */
+    public function listFrom(int $id, bool $get = false): array
+    {
+        return $this->resourceList->from($id, $get ? fn(int $childId) => $this->get($childId) : null);
+    }
+
+    /** @return array<string, list<int|array<string, mixed>>> */
+    public function listTo(int $id, bool $get = false): array
+    {
+        return $this->resourceList->to($id, $get ? fn(int $parentId) => $this->get($parentId) : null);
     }
 
     /** @param array{where?: string, order?: string|string[], limit?: string|int, debug?: bool} $arg

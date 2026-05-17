@@ -27,7 +27,7 @@ class Store
         'update-meta'      => 'UPDATE PREFIX_meta SET class=? WHERE id=?',
         'delete-meta'      => 'DELETE FROM PREFIX_meta WHERE id=?',
 
-        'select-attr'      => 'SELECT value FROM PREFIX_attribute WHERE id=? AND attribute =? LIMIT 1',
+        'select-attr'      => 'SELECT value FROM PREFIX_attribute WHERE id=? AND attribute=? LIMIT 1',
         'select-all-attr'  => 'SELECT attribute, value FROM PREFIX_attribute WHERE id=?',
         'replace-attr'     => 'REPLACE INTO PREFIX_attribute ( id, attribute, value ) VALUES ( ?, ?, ? )',
         'delete-attr'      => 'DELETE FROM PREFIX_attribute WHERE id=? AND attribute=?',
@@ -85,7 +85,7 @@ class Store
             return null;
         }
 
-        if (empty($value)) {
+        if ($value === null || $value === '') {
             $stmt = $this->prepare('delete-attr');
             $stmt->execute([$id, $attr]);
             return null;

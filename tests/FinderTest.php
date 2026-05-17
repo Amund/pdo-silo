@@ -233,13 +233,14 @@ class FinderTest extends TestCase
         $silo->filter('name', 'LIKE', 42);
     }
 
-    public function testFilterComparisonRequiresString(): void
+    public function testFilterComparisonAcceptsInt(): void
     {
         $silo = $this->createSilo();
 
-        $this->expectException(\Silo\Exception::class);
-        $this->expectExceptionMessage('Filter value must be a string for > operator');
-        $silo->filter('age', '>', 42);
+        // int/float are now accepted for comparison operators
+        $silo->set('product', ['price' => '30']);
+        $result = $silo->search(['where' => $silo->filter('price', '>', 25)]);
+        $this->assertSame(1, $result['total']);
     }
 
     public function testFilterNumericComparison(): void
@@ -262,14 +263,7 @@ class FinderTest extends TestCase
         $this->assertSame([1, 2], $result['results']);
     }
 
-    public function testFilterNonStringValue(): void
-    {
-        $silo = $this->createSilo();
 
-        $this->expectException(\Silo\Exception::class);
-        $this->expectExceptionMessage('Filter value must be a string for = operator');
-        $silo->filter('age', '=', 42);
-    }
 
     /* GROUP */
 

@@ -84,13 +84,15 @@ class StoreTest extends TestCase
         $this->assertNull($value);
 
         $silo->setAttr($id, 'attr1', '');
-        $silo->setAttr($id, 'attr2', 0);
-        $silo->setAttr($id, 'attr3', false);
         $silo->setAttr($id, 'attr4', null);
         $this->assertNull($silo->getAttr($id, 'attr1'));
+        $this->assertNull($silo->getAttr($id, 'attr4'));
+        // 0 et false ne sont plus supprimés (n'étant ni null ni '')
+
+        $silo->setAttr($id, 'attr2', '');
+        $silo->setAttr($id, 'attr3', '');
         $this->assertNull($silo->getAttr($id, 'attr2'));
         $this->assertNull($silo->getAttr($id, 'attr3'));
-        $this->assertNull($silo->getAttr($id, 'attr4'));
 
         $reserved = ['id', 'class', 'links', 'ID', 'Id'];
         foreach ($reserved as $attr) {
@@ -99,7 +101,7 @@ class StoreTest extends TestCase
         }
     }
 
-    public function testAttrZeroIsFalsyAndDeletes(): void
+    public function testAttrEmptyStringDeletes(): void
     {
         $silo = $this->createSilo();
         $id = $silo->setMeta(null, 'test');
@@ -107,8 +109,18 @@ class StoreTest extends TestCase
         $silo->setAttr($id, 'score', '42');
         $this->assertSame('42', $silo->getAttr($id, 'score'));
 
-        $silo->setAttr($id, 'score', '0');
+        $silo->setAttr($id, 'score', '');
         $this->assertNull($silo->getAttr($id, 'score'));
+    }
+
+    public function testAttrZeroIsStored(): void
+    {
+        $silo = $this->createSilo();
+        $id = $silo->setMeta(null, 'test');
+
+        $silo->setAttr($id, 'score', '42');
+        $silo->setAttr($id, 'score', '0');
+        $this->assertSame('0', $silo->getAttr($id, 'score'));
     }
 
     public function testAttributes(): void

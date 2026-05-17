@@ -10,7 +10,7 @@
 ## Namespace
 
 | Class | FQCN | Path | Role |
-|---|---|---|---|---|
+|---|---|---|---|
 | Facade | `Silo\Silo` | `src/Silo.php` | Public API, orchestrates services + cache |
 | Store | `Silo\Store` | `src/Store.php` | CRUD: meta + attributes |
 | ResourceLink | `Silo\ResourceLink` | `src/ResourceLink.php` | Links between resources |

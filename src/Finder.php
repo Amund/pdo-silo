@@ -30,10 +30,11 @@ class Finder
      * Supported $arg keys:
      *   - 'where' (string)  : SQL WHERE fragment from filter() / group().
      *   - 'order' (string|array): attribute name(s) with optional ASC/DESC.
-     *   - 'limit' (string|int)   : LIMIT clause value.
-     *   - 'debug' (bool)         : return the generated SQL instead of executing it.
+     *   - 'limit' (int)        : maximum number of results.
+     *   - 'offset' (int)       : result offset for pagination.
+     *   - 'debug' (bool)       : return the generated SQL instead of executing it.
      *
-     * @param array{where?: string, order?: string|string[], limit?: string|int, debug?: bool} $arg        Query parameters.
+     * @param array{where?: string, order?: string|string[], limit?: int, offset?: int, debug?: bool} $arg
      * @return ($arg is array{debug?: true} ? string[] : array{total: int, results: int[], duration: string})
      */
     public function search(array $arg = []): array
@@ -55,7 +56,11 @@ class Finder
         }
 
         if (isset($arg['limit'])) {
-            $sql[] = 'LIMIT ' . $arg['limit'];
+            $sql[] = 'LIMIT ' . max(0, (int) $arg['limit']);
+        }
+
+        if (isset($arg['offset'])) {
+            $sql[] = 'OFFSET ' . max(0, (int) $arg['offset']);
         }
 
         $sql = implode("\n", $sql);
@@ -73,8 +78,9 @@ class Finder
             $stmt = $this->pdo->query($sqlCountAware);
             $total = $this->pdo->query('SELECT FOUND_ROWS()')->fetch(PDO::FETCH_COLUMN);
         } else {
-            // Strip LIMIT for the separate COUNT query (SQLite, PostgreSQL, etc.)
-            $countSql = preg_replace('/\nLIMIT\s+\d+$/i', '', $sql);
+            // Strip LIMIT/OFFSET for the separate COUNT query (SQLite, PostgreSQL, etc.)
+            $countSql = preg_replace('/\n(LIMIT|OFFSET)\s+\d+$/i', '', $sql);
+            $countSql = preg_replace('/\n(LIMIT|OFFSET)\s+\d+$/i', '', $countSql);
             $countSql = 'SELECT COUNT(*) FROM (' . $countSql . ') AS count_sub';
             $total = $this->pdo->query($countSql)->fetch(PDO::FETCH_COLUMN);
             $stmt = $this->pdo->query($sql);
@@ -98,8 +104,10 @@ class Finder
      * Build a WHERE clause fragment.
      *
      * Supported operators: =, !=, <, >, <=, >=, <>, LIKE, IN.
+     *
+     * @param string|int|float|string[]|int[] $value
      */
-    public function filter(string $field, string $operator, mixed $value): string
+    public function filter(string $field, string $operator, string|int|float|array $value): string
     {
         $sql = ' ';
         if ($field === 'id' || $field === 'class') {
@@ -113,20 +121,20 @@ class Finder
             case '=':
             case '!=':
             case '<>':
-                if (!is_string($value)) {
-                    throw new Exception('Filter value must be a string for ' . $operator . ' operator');
+                if (is_int($value) || is_float($value)) {
+                    $sql .= $operator . $value;
+                } else {
+                    $sql .= $operator . $this->pdo->quote($value);
                 }
-                $sql .= $operator . $this->pdo->quote($value);
                 break;
             case '<=':
             case '>=':
             case '<':
             case '>':
-                if (!is_string($value)) {
-                    throw new Exception('Filter value must be a string for ' . $operator . ' operator');
-                }
-                $quoted = $this->pdo->quote($value);
-                if ($field !== 'id' && $field !== 'class' && is_numeric($value)) {
+                $quoted = $this->pdo->quote((string) $value);
+                if ($field !== 'id' && $field !== 'class' && (is_int($value) || is_float($value))) {
+                    $sql = 'attribute=' . $this->pdo->quote($field) . ' AND CAST(value AS NUMERIC) ' . $operator . ' ' . $value;
+                } elseif ($field !== 'id' && $field !== 'class' && is_numeric($value)) {
                     $sql = 'attribute=' . $this->pdo->quote($field) . ' AND CAST(value AS NUMERIC) ' . $operator . ' CAST(' . $quoted . ' AS NUMERIC)';
                 } else {
                     $sql .= $operator . $quoted;
@@ -139,9 +147,9 @@ class Finder
                 $sql .= ' ' . $operator . ' ' . $this->pdo->quote($value);
                 break;
             case 'IN':
-                $list = !is_array($value) ? explode(',', $value) : $value;
+                $list = is_array($value) ? $value : explode(',', $value);
                 foreach ($list as $k => $v) {
-                    $list[$k] = $this->pdo->quote(trim($v));
+                    $list[$k] = is_numeric($v) ? (string) $v : $this->pdo->quote(trim((string) $v));
                 }
                 $sql .= ' IN ( ' . implode(', ', $list) . ' )';
                 break;
@@ -154,17 +162,19 @@ class Finder
 
     /**
      * Combine multiple filter fragments with AND / OR logic.
+     *
+     * @param string $operator AND or OR.
+     * @param string ...$filters Filter fragments from filter().
      */
-    public function group(): string
+    public function group(string $operator, string ...$filters): string
     {
-        $filters = func_get_args();
-        if (count($filters) < 2) {
-            throw new Exception('Group requires at least 2 filters');
-        }
-
-        $operator = strtoupper(trim(array_shift($filters)));
+        $operator = strtoupper(trim($operator));
         if ($operator !== 'OR' && $operator !== 'AND') {
             throw new Exception('Group operator must be AND or OR, got ' . $operator);
+        }
+
+        if (count($filters) < 2) {
+            throw new Exception('Group requires at least 2 filters');
         }
 
         return ' ( ' . implode(' ) ' . $operator . ' ( ', $filters) . ' )';

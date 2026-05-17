@@ -99,7 +99,7 @@ class Silo
         if ($attributes !== []) {
             $this->withoutCache(fn() => $this->store->setAttributes($id, $attributes));
         }
-        $resource = $this->get($id);
+        $resource = $this->withoutCache(fn() => $this->get($id));
         $this->setCache($id, $resource);
         return $get === true ? $resource : $id;
     }
@@ -111,11 +111,7 @@ class Silo
             $resource = $this->getCache($id);
             if ($resource !== false) {
                 if ($links === true) {
-                    $resolve = $getLinks ? fn(int $childId) => $this->get($childId) : null;
-                    $resource['links']['from'] = $this->linker->to($id, $resolve);
-                    $resource['links']['to'] = $this->linker->from($id, $resolve);
-                    $resource['lists']['from'] = $this->resourceList->to($id, $resolve);
-                    $resource['lists']['to'] = $this->resourceList->from($id, $resolve);
+                    $this->resolveLinks($resource, $id, $getLinks);
                 }
                 return $resource;
             }
@@ -134,14 +130,23 @@ class Silo
         }
 
         if ($links === true) {
-            $resolve = $getLinks ? fn(int $childId) => $this->get($childId) : null;
-            $resource['links']['from'] = $this->linker->to($id, $resolve);
-            $resource['links']['to'] = $this->linker->from($id, $resolve);
-            $resource['lists']['from'] = $this->resourceList->to($id, $resolve);
-            $resource['lists']['to'] = $this->resourceList->from($id, $resolve);
+            $this->resolveLinks($resource, $id, $getLinks);
         }
 
         return $resource;
+    }
+
+    /**
+     * @param array<string, mixed> $resource
+     * @return void
+     */
+    private function resolveLinks(array &$resource, int $id, bool $getLinks): void
+    {
+        $resolve = $getLinks ? fn(int $childId) => $this->get($childId) : null;
+        $resource['links']['from'] = $this->linker->to($id, $resolve);
+        $resource['links']['to'] = $this->linker->from($id, $resolve);
+        $resource['lists']['from'] = $this->resourceList->to($id, $resolve);
+        $resource['lists']['to'] = $this->resourceList->from($id, $resolve);
     }
 
     /** @return ?array{id: int, class: string} */
@@ -236,14 +241,14 @@ class Silo
         return $this->resourceList->to($id, $get ? fn(int $parentId) => $this->get($parentId) : null);
     }
 
-    /** @param array{where?: string, order?: string|string[], limit?: string|int, debug?: bool} $arg
+    /** @param array{where?: string, order?: string|string[], limit?: int, offset?: int, debug?: bool} $arg
      *  @return array{total: int, results: mixed[], duration: string}|string[]
      */
     public function search(array $arg = [], bool $get = false, bool $links = false, bool $getLinks = false): array
     {
         $result = $this->finder->search($arg);
 
-        if ($get === true && isset($result['results']) && $result['results'] !== []) {
+        if ($get === true && isset($result['results']) && is_array($result['results']) && $result['results'] !== []) {
             $result['results'] = array_map(
                 fn(int $id) => $this->get($id, $links, $getLinks),
                 $result['results'],
@@ -253,14 +258,15 @@ class Silo
         return $result;
     }
 
-    public function filter(string $field, string $operator, mixed $value): string
+    /** @param string|int|float|string[]|int[] $value */
+    public function filter(string $field, string $operator, string|int|float|array $value): string
     {
         return $this->finder->filter($field, $operator, $value);
     }
 
-    public function group(): string
+    public function group(string $operator, string ...$filters): string
     {
-        return $this->finder->group(...func_get_args());
+        return $this->finder->group($operator, ...$filters);
     }
 
     public function emptyCache(): void
@@ -316,8 +322,12 @@ class Silo
             $stmt = $this->prepareCache('delete-cache');
             $stmt->execute([$id]);
         } else {
+            $encoded = json_encode($resource);
+            if ($encoded === false) {
+                throw new Exception('Failed to encode resource for cache');
+            }
             $stmt = $this->prepareCache('replace-cache');
-            $stmt->execute([$id, json_encode($resource)]);
+            $stmt->execute([$id, $encoded]);
         }
     }
 }

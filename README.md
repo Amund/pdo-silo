@@ -22,49 +22,49 @@ composer require amund/pdo-silo
 ```php
 use Silo\Silo;
 
-// creating a testing silo
+// 1. Connect and create tables
 $pdo = new \PDO('mysql:host=localhost;dbname=mydb;charset=utf8', 'login', 'password');
 $silo = new Silo($pdo, 'test');
 $silo->create();
 
-// adding resources
-$silo->set('person', ['firstname' => 'John', 'lastname' => 'Doe', 'gender' => 'M']); // => 1
-$silo->set('person', ['firstname' => 'Cynthia', 'lastname' => 'Doe', 'gender' => 'F']); // => 2
-$silo->set('person', ['firstname' => 'Régis', 'lastname' => 'Doe', 'gender' => 'M']); // => 3
-$silo->set('address', ['street' => '5 Bedford St', 'city' => 'New York']); // => 4
-$silo->set('animal', ['type' => 'fish', 'species' => 'Lutjanus sebae', 'color' => 'blue']); // => 5
+// 2. Create resources (returns their ids)
+$john  = $silo->set('person', ['firstname' => 'John', 'lastname' => 'Doe']);
+$cynth = $silo->set('person', ['firstname' => 'Cynthia', 'lastname' => 'Doe']);
+$regis = $silo->set('person', ['firstname' => 'Régis', 'lastname' => 'Doe']);
+// $john = 1, $cynth = 2, $regis = 3
 
-// modifying resource
-$silo->setAttr(4, 'zip', '10118');
-$silo->setAttr(5, 'color', 'red');
-
-// getting a resource by its id
-$resource = $silo->get(1);
+// 3. Read a resource
+$silo->get($john);
 // => ['id' => 1, 'class' => 'person', 'firstname' => 'John', 'lastname' => 'Doe']
 
-// adding some links
-$silo->link(1, 2, 'husband');
-$silo->link(2, 1, 'wife');
-$silo->link(3, 1, 'son');
-$silo->link(3, 2, 'son');
-$silo->link(4, 1);
-$silo->link(4, 2);
-$silo->link(4, 3);
-$silo->link(5, 3, 'pet');
+// 4. Modify an attribute
+$silo->setAttr($john, 'gender', 'M');
 
-// searching resources
-$silo->search(['where' => $silo->filter('lastname', 'LIKE', 'doe')]);
-// => [1, 2, 3]
+// 5. Link resources
+$silo->link($john, $cynth, 'married_to');
+$silo->link($regis, $john, 'son_of');
 
-$silo->search([
-    'where' => $silo->group(
-        'and',
-        $silo->filter('class', '=', 'person'),
-        $silo->filter('lastname', 'LIKE', 'doe'),
-        $silo->filter('gender', '=', 'M')
-    ),
-]);
-// => [1, 3]
+// 6. Read with links
+$silo->get($john, links: true);
+// => ['id' => 1, 'class' => 'person', ..., 'links' => [
+//       'from' => ['married_to' => [2]],      // people linked TO John
+//       'to'   => ['son_of' => [3]],           // people John links TO
+//     ], 'lists' => [
+//       'from' => [],                           // ordered lists John belongs to
+//       'to'   => [],                           // ordered lists John owns
+//     ]]
+
+// 7. Search (accepts int values natively)
+$silo->search(['where' => $silo->filter('age', '>=', 18)]);
+
+$silo->search(['where' => $silo->filter('lastname', 'LIKE', '%Doe%')]);
+// => ['total' => 3, 'results' => [1, 2, 3], 'duration' => '0.000123']
+
+// 8. Ordered lists
+$tagA = $silo->set('tag');
+$tagB = $silo->set('tag');
+$silo->setList($john, 'tags', [$tagA, $tagB]);
+$silo->getList($john, 'tags'); // => [$tagA, $tagB]
 ```
 
 ## API
@@ -86,7 +86,7 @@ $silo->search([
 | `getMeta(int $id): ?array` | Returns `['id', 'class']` or null. |
 | `setMeta(?int $id, string $class): int` | Create (`$id = null`) or update a resource class. Returns the resource id. |
 | `getAttr(int $id, string $attr): ?string` | Returns the attribute value, or null. |
-| `setAttr(int $id, string $attr, mixed $value): mixed` | Set/update/delete an attribute. Empty values (`''`, `0`, `false`, `null`) delete the attribute. |
+| `setAttr(int $id, string $attr, mixed $value): mixed` | Set/update/delete an attribute. `null` and `''` delete the attribute. `'0'` and `0` are stored. |
 | `getAttributes(int $id): array` | Returns all attributes as `['name' => 'value', ...]`. |
 | `setAttributes(int $id, ?array $attributes): ?array` | Replace all attributes, or pass `null` to delete them all. |
 
@@ -107,9 +107,9 @@ $silo->search([
 
 | Method | Description |
 |--------|-------------|
-| `search(array $arg = [], bool $get = false, bool $links = false, bool $getLinks = false): array` | Search resources. Returns `['total', 'results', 'duration']`. Supports `where`, `order`, and `limit` keys. |
-| `filter(string $field, string $operator, mixed $value): string` | Build a WHERE clause fragment. Operators: `=`, `!=`, `<`, `>`, `<=`, `>=`, `LIKE`, `IN`. |
-| `group(): string` | Combine filters with `AND` or `OR`. |
+| `search(array $arg = [], bool $get = false, bool $links = false, bool $getLinks = false): array` | Search resources. Returns `['total', 'results', 'duration']`. Supports `where`, `order`, `limit`, and `offset` keys. |
+| `filter(string $field, string $operator, string\|int\|float\|array $value): string` | Build a WHERE clause fragment. Operators: `=`, `!=`, `<`, `>`, `<=`, `>=`, `LIKE`, `IN`. `int`/`float` values produce numeric comparisons. |
+| `group(string $operator, string ...$filters): string` | Combine filters with `AND` or `OR`. |
 
 ### Cache
 
